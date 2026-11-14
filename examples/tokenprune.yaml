@@ -1,0 +1,58 @@
+version: "1"
+
+server:
+  listen: ":8080"
+  target_provider: "anthropic" # anthropic | openai | gemini
+  upstream_url: "https://api.anthropic.com"
+  sqlite_path: "./tokenprune.db"
+  read_timeout_seconds: 120
+  write_timeout_seconds: 300
+
+pruning:
+  target_compression_ratio: 0.60
+  max_context_tokens: 40000
+
+  tier1_syntactic:
+    minify_json: true
+    strip_html_comments: true
+    normalize_whitespace: true
+    prune_table_padding: true
+
+  tier2_tool_eviction:
+    enabled: true
+    evict_superseded_reads: true
+    max_tool_output_age_turns: 3
+    receipt_template: "[Receipt: Tool '%s' (id: %s) output condensed (%d lines, %d bytes). Superseded by subsequent turn.]"
+    preserve_errors: true
+    protected_tool_names:
+      - "bash_critical"
+      - "deploy"
+      - "checkout"
+
+  tier3_semantic_delta:
+    enabled: true
+    compress_after_turns: 6
+    keep_recent_turns: 4
+    protected_keywords:
+      - "CRITICAL_RULES"
+      - "SYSTEM_INVARIANT"
+      - "PINNED"
+
+pricing:
+  default_input_per_million: 3.00
+  model_rates:
+    claude-3-7-sonnet: 3.00
+    claude-3-5-sonnet: 3.00
+    claude-3-5-haiku: 0.80
+    claude-3-opus: 15.00
+    gpt-4o: 2.50
+    gpt-4o-mini: 0.15
+    o1: 15.00
+    o3-mini: 1.10
+    gemini-1.5-pro: 1.25
+    gemini-2.0-flash: 0.10
+
+notifications:
+  slack:
+    webhook_url: "${SLACK_WEBHOOK_URL:-}"
+    alert_on_savings_milestone_usd: 100.00
