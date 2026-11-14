@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SandboxResponse } from '../types';
 import { DiffViewer } from './DiffViewer';
 import { Play, Sparkles, RotateCcw, Bookmark } from 'lucide-react';
@@ -114,6 +114,10 @@ export const Sandbox: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SandboxResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    handleRunPruning();
+  }, []);
 
   const loadScenario = (preset: string) => {
     switch (preset) {

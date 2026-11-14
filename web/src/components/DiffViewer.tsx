@@ -30,7 +30,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
     <div className="flex flex-col gap-4">
       {/* Tier Breakdown Chips */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setSelectedTier('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${

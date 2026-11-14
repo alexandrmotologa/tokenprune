@@ -47,7 +47,7 @@ export const TurnWaterfall: React.FC<TurnWaterfallProps> = ({ sessions }) => {
 
   return (
     <div className="flex flex-col p-6 bg-slate-900/60 border border-slate-800 rounded-2xl shadow-xl backdrop-blur relative">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <div className="text-sm font-semibold text-slate-200">Context Inflation vs Pruned Payload</div>
           <div className="text-xs text-slate-500 mt-0.5">Prompt token trajectory across sequential agent turns</div>

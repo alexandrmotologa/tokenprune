@@ -1,8 +1,25 @@
-# tokenprune
+<p align="center">
+  <img src="docs/images/logo.png" alt="tokenprune Logo" width="130" style="border-radius: 28px;" />
+</p>
 
-Streaming semantic context compression and reverse proxy for autonomous AI agent sessions.
+<h1 align="center">tokenprune</h1>
 
-tokenprune sits between agent harnesses (such as Claude Code, Aider, and custom agent loops) and LLM endpoints. It cuts prompt token volume by 60% to 75% while keeping proxy processing overhead below 1 millisecond on standard CPUs.
+<p align="center">
+  <strong>High-speed streaming semantic context compressor and reverse proxy for autonomous AI agents</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/alexandrmotologa/tokenprune/actions/workflows/test.yml"><img src="https://github.com/alexandrmotologa/tokenprune/actions/workflows/test.yml/badge.svg" alt="CI Status" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/go-1.24-00ADD8.svg" alt="Go 1.24" /></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/react-19-61DAFB.svg" alt="React 19" /></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/tokenprune_demo.gif" alt="tokenprune Telemetry Studio Live Demo" width="100%" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);" />
+</p>
+
+tokenprune sits between agent harnesses (such as Claude Code, Aider, Cursor, and custom agent loops) and LLM endpoints. It cuts prompt token volume by 60% to 75% while keeping proxy processing overhead below 1 millisecond on standard CPUs.
 
 ---
 
@@ -96,6 +113,34 @@ Benchmark results executed against multi-turn agent sessions using `claude-3-5-s
 | Tier 3 state delta savings | 0 tokens | 52 tokens | 6 turns condensed |
 | Pipeline processing time | 0.0 ms | 0.53 ms | Well below 10ms budget |
 | Memory allocations | 0 | 126 allocs/op | Pure Go, zero CGO |
+
+---
+
+## Telemetry Studio
+
+tokenprune embeds a high-resolution React 19 single-page application directly within the binary via `go:embed`. It provides real-time observability into streaming proxy sessions, token growth curves, and tier breakdown actions.
+
+### Real-Time Observability Dashboard
+The main dashboard displays cumulative context reduction percentages, dollar cost avoidance, active sub-millisecond pruning overhead, and sequential turn context trajectory curves.
+
+![tokenprune Dashboard](docs/images/tokenprune_dashboard.png)
+
+### Interactive Pruning Sandbox and Diff Engine
+Test prompt payloads in real time with immediate visual diff inspection across all three compression tiers before deploying configuration changes.
+
+![tokenprune Sandbox](docs/images/tokenprune_sandbox.png)
+
+### Multi-Turn Session Archive and Audit Trail
+Audit past requests, export telemetry data to JSON or CSV, or copy exact replayable cURL commands to the clipboard.
+
+![tokenprune Sessions Archive](docs/images/tokenprune_sessions.png)
+
+### Responsive Mobile Interface
+The Telemetry Studio adapts cleanly to mobile devices, tablets, and desktop workstations with tailored layout hierarchies.
+
+<p align="center">
+  <img src="docs/images/tokenprune_mobile.png" alt="tokenprune Mobile Responsive View" width="380" style="border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);" />
+</p>
 
 ---
 
@@ -244,18 +289,6 @@ pricing:
     gpt-4o: 2.50
     gpt-4o-mini: 0.15
 ```
-
----
-
-## Telemetry Studio
-
-The embedded React 19 studio provides real-time observability into proxy activity:
-- Fuel Gauge: Radial meter tracking cumulative and per-turn token reduction percentage.
-- Turn Waterfall: Context growth curves plotting raw inbound tokens against the pruned outbound trajectory.
-- Action Diff Viewer: Detailed inspection showing which lines were removed in Tier 1, which tool outputs were evicted in Tier 2, and which turns were consolidated in Tier 3.
-- Interactive Sandbox: Playground with preset agent scenarios (superseded tool reads, error preservation, JSON/table markup) to test compression ratios and inspect diffs before changing proxy configuration.
-- 1-Click cURL Copy and Trace Export: Inspect any past session, export full session traces to JSON or CSV, or copy exact replayable cURL commands to the clipboard.
-- Real-Time Updates: Built on Server-Sent Events with zero client polling.
 
 ---
 
