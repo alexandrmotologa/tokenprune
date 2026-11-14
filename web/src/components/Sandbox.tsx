@@ -1,74 +1,111 @@
 import React, { useState } from 'react';
 import { SandboxResponse } from '../types';
 import { DiffViewer } from './DiffViewer';
-import { Play, Sparkles, RotateCcw } from 'lucide-react';
+import { Play, Sparkles, RotateCcw, Bookmark } from 'lucide-react';
 
-const SAMPLE_BLOATED_PAYLOAD = `{
+const SCENARIO_MULTI_FILE = `{
+  "model": "claude-3-5-sonnet",
+  "system": "CRITICAL_RULES: Maintain zero-loss accuracy on active working context.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please read config.go and refactor the pool limits."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "Reading config/database.go."},
+        {
+          "type": "tool_use",
+          "id": "toolu_read_1",
+          "name": "read_file",
+          "input": {"path": "config/database.go"}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_read_1",
+          "name": "read_file",
+          "content": "package config\\n\\n// Verbose file lines that bloat conversation context.\\n// Line 1: Pool setting\\n// Line 2: Pool setting\\n// Line 3: Pool setting\\n// Line 4: Pool setting\\n// Line 5: Pool setting\\n// Line 6: Pool setting\\n// Line 7: Pool setting\\n// Line 8: Pool setting\\n// Line 9: Pool setting\\n// Line 10: Pool setting\\n"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "Writing updated database pool configuration."},
+        {
+          "type": "tool_use",
+          "id": "toolu_write_1",
+          "name": "write_file",
+          "input": {"path": "config/database.go"}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_write_1",
+          "name": "write_file",
+          "content": "File config/database.go updated successfully."
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "Updated pool limits. What is next?"
+    }
+  ]
+}`;
+
+const SCENARIO_ERROR_PRESERVE = `{
+  "model": "gpt-4o",
+  "messages": [
+    {"role": "system", "content": "You are a backend test runner. CRITICAL_RULES: Report test failures."},
+    {"role": "user", "content": "Run backend unit tests."},
+    {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "id": "call_test_1",
+          "type": "function",
+          "function": {"name": "run_test", "arguments": "{\\"package\\": \\"./pkg/auth\\"}"}
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_test_1",
+      "name": "run_test",
+      "content": "--- FAIL: TestAuthValidation (0.02s)\\n    auth_test.go:54: expected 200 OK, got 401 Unauthorized\\nFAIL\\nexit status 1"
+    },
+    {"role": "assistant", "content": "The auth test failed. Fixing token authorization header."},
+    {"role": "user", "content": "Please verify the error and retry."}
+  ]
+}`;
+
+const SCENARIO_TIER1_MARKUP = `{
   "model": "claude-3-5-sonnet",
   "messages": [
     {
       "role": "user",
-      "content": "Please read the config file and inspect the project."
+      "content": "Summarize user profile schema."
     },
     {
       "role": "assistant",
-      "content": "Understood. Reading configuration file.",
-      "blocks": [
-        {
-          "type": "tool_use",
-          "id": "toolu_read_cfg_1",
-          "name": "read_file",
-          "input": {
-            "path": "internal/config/config.go"
-          }
-        }
-      ]
-    },
-    {
-      "role": "user",
-      "blocks": [
-        {
-          "type": "tool_result",
-          "id": "toolu_read_cfg_1",
-          "name": "read_file",
-          "content": "package config\\n\\nimport (\\n\\t\\"fmt\\"\\n\\t\\"os\\"\\n\\t\\"regexp\\"\\n)\\n\\n// Configuration struct with redundant documentation lines.\\n// Line 1: Setting listen port\\n// Line 2: Setting upstream provider\\n// Line 3: Setting sqlite path\\n// Line 4: Setting tier1 options\\n// Line 5: Setting tier2 options\\n// Line 6: Setting tier3 options\\n// Line 7: Setting pricing options\\n// Line 8: Additional comment that inflates context window unnecessarily.\\n// Line 9: Repeated comment line.\\n// Line 10: Repeated comment line.\\n"
-        }
-      ]
-    },
-    {
-      "role": "assistant",
-      "content": "Config loaded. Now writing updated configuration.",
-      "blocks": [
-        {
-          "type": "tool_use",
-          "id": "toolu_write_cfg_2",
-          "name": "write_file",
-          "input": {
-            "path": "internal/config/config.go"
-          }
-        }
-      ]
-    },
-    {
-      "role": "user",
-      "blocks": [
-        {
-          "type": "tool_result",
-          "id": "toolu_write_cfg_2",
-          "name": "write_file",
-          "content": "File internal/config/config.go saved successfully."
-        }
-      ]
-    },
-    {
-      "role": "assistant",
-      "content": "What is the next task?"
+      "content": "<!-- internal telemetry comment: pipeline_v1_run -->\\nHere is the schema:\\n\\n{\\n  \\"user_id\\": 42,\\n  \\"permissions\\": [\\n    \\"read\\",\\n    \\"write\\",\\n    \\"admin\\"\\n  ],\\n  \\"metadata\\": {\\n    \\"tier\\": \\"enterprise\\"\\n  }\\n}\\n\\n|   Column A   |   Column B   |\\n|--------------|--------------|\\n|    value 1   |    value 2   |\\n\\n\`\`\`python\\ndef execute():\\n    # Indentation inside code blocks is strictly preserved\\n    return True\\n\`\`\`"
     }
   ]
 }`;
 
 export const Sandbox: React.FC = () => {
-  const [inputPrompt, setInputPrompt] = useState(SAMPLE_BLOATED_PAYLOAD);
+  const [inputPrompt, setInputPrompt] = useState(SCENARIO_MULTI_FILE);
   const [model, setModel] = useState('claude-3-5-sonnet');
   const [tier1, setTier1] = useState(true);
   const [tier2, setTier2] = useState(true);
@@ -77,6 +114,33 @@ export const Sandbox: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SandboxResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const loadScenario = (preset: string) => {
+    switch (preset) {
+      case 'multi-file':
+        setInputPrompt(SCENARIO_MULTI_FILE);
+        setModel('claude-3-5-sonnet');
+        setTier1(true);
+        setTier2(true);
+        setTier3(true);
+        break;
+      case 'error-preserve':
+        setInputPrompt(SCENARIO_ERROR_PRESERVE);
+        setModel('gpt-4o');
+        setTier1(true);
+        setTier2(true);
+        setTier3(true);
+        break;
+      case 'markup':
+        setInputPrompt(SCENARIO_TIER1_MARKUP);
+        setModel('claude-3-5-sonnet');
+        setTier1(true);
+        setTier2(false);
+        setTier3(false);
+        break;
+    }
+    setResult(null);
+  };
 
   const handleRunPruning = async () => {
     setLoading(true);
@@ -89,7 +153,7 @@ export const Sandbox: React.FC = () => {
         body: JSON.stringify({
           text: inputPrompt,
           model,
-          format: inputPrompt.includes('"messages"') ? 'anthropic' : 'raw',
+          format: inputPrompt.includes('"messages"') ? (inputPrompt.includes('"tool_calls"') ? 'openai' : 'anthropic') : 'raw',
           tier1,
           tier2,
           tier3,
@@ -123,13 +187,26 @@ export const Sandbox: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs">
+            <Bookmark className="w-3.5 h-3.5 text-slate-500" />
+            <select
+              onChange={(e) => loadScenario(e.target.value)}
+              className="bg-transparent text-slate-300 focus:outline-none cursor-pointer"
+              defaultValue="multi-file"
+            >
+              <option value="multi-file" className="bg-slate-950">Preset: Superseded Tool Reads</option>
+              <option value="error-preserve" className="bg-slate-950">Preset: Preserved Error Output</option>
+              <option value="markup" className="bg-slate-950">Preset: JSON & Table Padding</option>
+            </select>
+          </div>
+
           <button
-            onClick={() => setInputPrompt(SAMPLE_BLOATED_PAYLOAD)}
+            onClick={() => loadScenario('multi-file')}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Reset Sample
+            Reset
           </button>
           <button
             onClick={handleRunPruning}
@@ -238,7 +315,6 @@ export const Sandbox: React.FC = () => {
       {/* Results View */}
       {result && (
         <div className="flex flex-col gap-6 mt-2">
-          {/* Metrics summary bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl">
               <div className="text-xs text-slate-400">Tokens Before / After</div>
@@ -269,7 +345,6 @@ export const Sandbox: React.FC = () => {
             </div>
           </div>
 
-          {/* Detailed Diff Viewer */}
           <DiffViewer
             original={result.original_text}
             pruned={result.pruned_text}

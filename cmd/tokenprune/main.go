@@ -37,6 +37,10 @@ func main() {
 	switch command {
 	case "serve":
 		runServe(os.Args[2:])
+	case "exec":
+		runExec(os.Args[2:])
+	case "dump":
+		runDump(os.Args[2:])
 	case "bench":
 		runBench(os.Args[2:])
 	case "prune":
@@ -62,8 +66,10 @@ Usage:
 
 Commands:
   serve      Start the reverse proxy and embedded Telemetry Studio
+  exec       Wrap and run any agent command with zero configuration
   bench      Benchmark context compression and latency on a prompt payload
   prune      Pipe mode: compress raw context or JSON from stdin to stdout
+  dump       Export telemetry traces to JSONL or CSV
   report     Display historical savings and performance telemetry
   version    Display version and build information
 

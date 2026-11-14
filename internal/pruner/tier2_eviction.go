@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alexandrmotologa/tokenprune/internal/cache"
 	"github.com/alexandrmotologa/tokenprune/internal/config"
 	"github.com/alexandrmotologa/tokenprune/internal/tokenizer"
 )
@@ -107,6 +108,7 @@ func (t *Tier2ToolEviction) ProcessMessages(messages []Message, model string) ([
 				saved := origTokens - receiptTokens
 
 				if saved > 0 {
+					cache.DefaultToolCache.Set(msg.Name, msg.ToolCallID, msg.Name, lines, bytesLen, receipt)
 					diffs = append(diffs, DiffItem{
 						Tier:        2,
 						Description: fmt.Sprintf("Tool eviction: %s (id: %s)", msg.Name, msg.ToolCallID),
@@ -135,6 +137,7 @@ func (t *Tier2ToolEviction) ProcessMessages(messages []Message, model string) ([
 					saved := origTokens - receiptTokens
 
 					if saved > 0 {
+						cache.DefaultToolCache.Set(block.Name, blockID, block.Name, lines, bytesLen, receipt)
 						diffs = append(diffs, DiffItem{
 							Tier:        2,
 							Description: fmt.Sprintf("Tool result eviction: %s (id: %s)", block.Name, blockID),

@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/alexandrmotologa/tokenprune/internal/config"
+	"github.com/alexandrmotologa/tokenprune/internal/metrics"
 	"github.com/alexandrmotologa/tokenprune/internal/store"
 )
 
@@ -118,5 +120,40 @@ func TestAPIEndpoints(t *testing.T) {
 	}
 	if sandboxResp.Stats.TokensSaved < 0 {
 		t.Fatal("expected non-negative tokens saved in sandbox")
+	}
+}
+
+
+func TestMetricsEndpoint(t *testing.T) {
+	collector := metrics.NewCollector()
+	rec := &store.SessionRecord{
+		Provider:            "anthropic",
+		Model:               "claude-3-5-sonnet",
+		InboundTokens:       1000,
+		OutboundTokens:      300,
+		TokensSaved:         700,
+		Tier1Saved:          100,
+		Tier2Saved:          400,
+		Tier3Saved:          200,
+		ProcessingLatencyMs: 1.2,
+		UpstreamTTFTMs:      250.0,
+		USDSaved:            0.0021,
+	}
+	collector.ObserveSession(rec)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	w := httptest.NewRecorder()
+	collector.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected /metrics 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "tokenprune_tokens_saved_total") {
+		t.Fatalf("/metrics missing expected token counter: %s", body)
+	}
+	if !strings.Contains(body, "tokenprune_requests_total") {
+		t.Fatalf("/metrics missing requests counter: %s", body)
 	}
 }

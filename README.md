@@ -159,11 +159,18 @@ curl -N http://localhost:8080/v1/chat/completions \
 # Start proxy with embedded telemetry studio
 tokenprune serve --port 8080 --provider anthropic
 
+# Wrap and run any agent command with zero manual environment configuration
+tokenprune exec -- claude
+tokenprune exec -- aider --model claude-3-5-sonnet
+
 # Benchmark context reduction on a recorded payload
 tokenprune bench --input ./examples/sample_bloated_prompt.json --model claude-3-5-sonnet
 
 # Unix pipe filter mode
 cat raw_context.json | tokenprune prune --ratio 0.65 > pruned_context.json
+
+# Export telemetry traces to JSONL or CSV
+tokenprune dump --db ./tokenprune.db --format jsonl --out traces.jsonl
 
 # Display cumulative savings report
 tokenprune report --db ./tokenprune.db --format table
@@ -171,6 +178,19 @@ tokenprune report --db ./tokenprune.db --format table
 # Display version
 tokenprune version
 ```
+
+---
+
+## Prometheus metrics export
+
+tokenprune exposes standard Prometheus metrics at `GET /metrics` for integration with Prometheus, Grafana, and Datadog:
+- `tokenprune_requests_total`: Total number of requests processed by provider and model.
+- `tokenprune_tokens_inbound_total`: Cumulative raw prompt tokens received.
+- `tokenprune_tokens_outbound_total`: Cumulative pruned prompt tokens dispatched.
+- `tokenprune_tokens_saved_total`: Cumulative prompt tokens saved per pruning tier.
+- `tokenprune_cost_avoidance_usd_total`: Cumulative estimated dollar savings based on configured model pricing.
+- `tokenprune_processing_latency_ms`: Processing latency summary.
+- `tokenprune_upstream_ttft_ms`: Upstream prefill latency summary (Time to First Token).
 
 ---
 
@@ -233,7 +253,8 @@ The embedded React 19 studio provides real-time observability into proxy activit
 - Fuel Gauge: Radial meter tracking cumulative and per-turn token reduction percentage.
 - Turn Waterfall: Context growth curves plotting raw inbound tokens against the pruned outbound trajectory.
 - Action Diff Viewer: Detailed inspection showing which lines were removed in Tier 1, which tool outputs were evicted in Tier 2, and which turns were consolidated in Tier 3.
-- Interactive Sandbox: Playground to test compression ratios, tune thresholds, and inspect diffs before changing proxy configuration.
+- Interactive Sandbox: Playground with preset agent scenarios (superseded tool reads, error preservation, JSON/table markup) to test compression ratios and inspect diffs before changing proxy configuration.
+- 1-Click cURL Copy and Trace Export: Inspect any past session, export full session traces to JSON or CSV, or copy exact replayable cURL commands to the clipboard.
 - Real-Time Updates: Built on Server-Sent Events with zero client polling.
 
 ---

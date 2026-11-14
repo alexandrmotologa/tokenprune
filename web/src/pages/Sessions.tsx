@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SessionRecord } from '../types';
 import { DiffViewer } from '../components/DiffViewer';
-import { Search, ChevronRight, X } from 'lucide-react';
+import { Search, ChevronRight, X, Copy, Check, Download, Terminal } from 'lucide-react';
 
 interface SessionsProps {
   sessions: SessionRecord[];
@@ -15,6 +15,7 @@ export const Sessions: React.FC<SessionsProps> = ({
   onSelectSession,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const filtered = sessions.filter(s =>
     s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -22,9 +23,50 @@ export const Sessions: React.FC<SessionsProps> = ({
     s.model.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const copyAsCurl = (s: SessionRecord, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const endpoint = s.provider === 'openai' ? 'http://localhost:8080/v1/chat/completions' : 'http://localhost:8080/v1/messages';
+    const payload = s.pruned_preview || s.raw_preview || '{}';
+    const cmd = `curl -X POST ${endpoint} \\\n  -H "Content-Type: application/json" \\\n  -d '${payload.replace(/'/g, "'\\''")}'`;
+
+    navigator.clipboard.writeText(cmd);
+    setCopiedId(s.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const exportData = (format: 'json' | 'csv') => {
+    let content = '';
+    let filename = `tokenprune_sessions_${new Date().toISOString().slice(0, 10)}`;
+    let type = '';
+
+    if (format === 'json') {
+      content = JSON.stringify(filtered, null, 2);
+      filename += '.json';
+      type = 'application/json';
+    } else {
+      const headers = ['id', 'session_id', 'created_at', 'provider', 'model', 'inbound_tokens', 'outbound_tokens', 'tokens_saved', 'compression_ratio', 'latency_ms', 'usd_saved'];
+      const rows = filtered.map(s => [
+        s.id, s.session_id, s.created_at, s.provider, s.model,
+        s.inbound_tokens, s.outbound_tokens, s.tokens_saved,
+        s.compression_ratio.toFixed(2), s.processing_latency_ms.toFixed(2), s.usd_saved.toFixed(5)
+      ].join(','));
+      content = [headers.join(','), ...rows].join('\n');
+      filename += '.csv';
+      type = 'text/csv';
+    }
+
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Header and Search */}
+      {/* Header and Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur">
         <div>
           <h2 className="text-lg font-bold text-white">Agent Sessions Archive</h2>
@@ -33,15 +75,34 @@ export const Sessions: React.FC<SessionsProps> = ({
           </p>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Filter by session ID, model..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500"
-          />
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Filter sessions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500"
+            />
+          </div>
+
+          <button
+            onClick={() => exportData('json')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors"
+            title="Export as JSON"
+          >
+            <Download className="w-3.5 h-3.5" />
+            JSON
+          </button>
+          <button
+            onClick={() => exportData('csv')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors"
+            title="Export as CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </button>
         </div>
       </div>
 
@@ -58,7 +119,7 @@ export const Sessions: React.FC<SessionsProps> = ({
                 <th className="px-6 py-3.5 text-right">Saved %</th>
                 <th className="px-6 py-3.5 text-right">Cost Saved</th>
                 <th className="px-6 py-3.5 text-right">Latency</th>
-                <th className="px-6 py-3.5 text-center">Action</th>
+                <th className="px-6 py-3.5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -102,15 +163,28 @@ export const Sessions: React.FC<SessionsProps> = ({
                       {s.processing_latency_ms.toFixed(1)}ms
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectSession(s);
-                        }}
-                        className="p-1.5 hover:bg-slate-700/60 text-slate-400 hover:text-white rounded-lg transition-colors"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={(e) => copyAsCurl(s, e)}
+                          title="Copy as cURL command"
+                          className="p-1.5 hover:bg-slate-700/60 text-slate-400 hover:text-white rounded-lg transition-colors"
+                        >
+                          {copiedId === s.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          ) : (
+                            <Terminal className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectSession(s);
+                          }}
+                          className="p-1.5 hover:bg-slate-700/60 text-slate-400 hover:text-white rounded-lg transition-colors"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -120,7 +194,7 @@ export const Sessions: React.FC<SessionsProps> = ({
         </div>
       </div>
 
-      {/* Detail Modal / Drawer */}
+      {/* Detail Modal */}
       {selectedSession && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 flex flex-col gap-6">
@@ -133,12 +207,30 @@ export const Sessions: React.FC<SessionsProps> = ({
                   {selectedSession.id}
                 </h3>
               </div>
-              <button
-                onClick={() => onSelectSession(null)}
-                className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => copyAsCurl(selectedSession, e)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-sans transition-colors"
+                >
+                  {copiedId === selectedSession.id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      Copied cURL!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy cURL
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => onSelectSession(null)}
+                  className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Quick Metrics */}

@@ -309,3 +309,34 @@ func BenchmarkPrunerPipeline(b *testing.B) {
 		_, _ = pipeline.Prune(messages, "claude-3-5-sonnet")
 	}
 }
+
+
+func TestContextDriftAnchor(t *testing.T) {
+	messages := []Message{
+		{Role: "system", Content: "System setup. CRITICAL_RULES: Never delete prod db."},
+		{Role: "user", Content: "Turn 1"},
+		{Role: "assistant", Content: "Reply 1"},
+		{Role: "user", Content: "Turn 2"},
+		{Role: "assistant", Content: "Reply 2"},
+		{Role: "user", Content: "Turn 3"},
+		{Role: "assistant", Content: "Reply 3"},
+		{Role: "user", Content: "Turn 4"},
+		{Role: "assistant", Content: "Reply 4"},
+		{Role: "user", Content: "Final active turn"},
+	}
+
+	invariants := ExtractInvariants(messages, []string{"CRITICAL_RULES"})
+	if !strings.Contains(invariants, "Never delete prod db") {
+		t.Fatalf("expected invariant to be extracted, got: %s", invariants)
+	}
+
+	updated, diff, applied := ReinforceAnchor(messages, invariants, 8)
+	if !applied || diff == nil {
+		t.Fatal("expected anchor to be reinforced")
+	}
+
+	lastMsg := updated[len(updated)-1]
+	if !strings.Contains(lastMsg.Content, "[Constraint Anchor:") || !strings.Contains(lastMsg.Content, "Final active turn") {
+		t.Fatalf("unexpected last message content: %s", lastMsg.Content)
+	}
+}

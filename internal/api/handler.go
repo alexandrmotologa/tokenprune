@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alexandrmotologa/tokenprune/internal/config"
+	"github.com/alexandrmotologa/tokenprune/internal/metrics"
 	"github.com/alexandrmotologa/tokenprune/internal/pruner"
 	"github.com/alexandrmotologa/tokenprune/internal/proxy"
 	"github.com/alexandrmotologa/tokenprune/internal/store"
@@ -48,6 +49,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/sandbox", h.handleSandbox)
 	mux.HandleFunc("/api/config", h.handleConfig)
 	mux.HandleFunc("/health", h.handleHealth)
+	mux.HandleFunc("/metrics", metrics.Default.ServeHTTP)
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {

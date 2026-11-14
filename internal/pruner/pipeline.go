@@ -77,6 +77,22 @@ func (p *Pipeline) Prune(messages []Message, model string) ([]Message, PruningSt
 		allDiffs = append(allDiffs, diffs...)
 	}
 
+	// Step 4: Context Drift Anchor Reinforcement
+	if p.cfg.Tier3SemanticDelta.Enabled && p.cfg.Tier3SemanticDelta.EnableContextAnchors {
+		threshold := p.cfg.Tier3SemanticDelta.ReinforceAnchorTurns
+		if threshold <= 0 {
+			threshold = 8
+		}
+		invariants := ExtractInvariants(messages, p.cfg.Tier3SemanticDelta.ProtectedKeywords)
+		if invariants != "" {
+			updated, diff, applied := ReinforceAnchor(working, invariants, threshold)
+			if applied && diff != nil {
+				working = updated
+				allDiffs = append(allDiffs, *diff)
+			}
+		}
+	}
+
 	outboundTokens := p.CountMessages(working, model)
 	tokensSaved := inboundTokens - outboundTokens
 	if tokensSaved < 0 {

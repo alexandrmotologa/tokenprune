@@ -136,6 +136,7 @@ func TestProxyServerStreamingIntegration(t *testing.T) {
 
 	// 2. Set up tokenprune config and in-memory store
 	cfg := config.DefaultConfig()
+	cfg.Server.TargetProvider = "openai"
 	cfg.Server.UpstreamURL = mockUpstream.URL
 	db, err := store.Open(":memory:")
 	if err != nil {
@@ -199,5 +200,62 @@ func TestProxyServerStreamingIntegration(t *testing.T) {
 	}
 	if sessions[0].UpstreamTTFTMs <= 0 {
 		t.Fatalf("expected positive TTFT, got %f", sessions[0].UpstreamTTFTMs)
+	}
+}
+
+
+func TestCrossProviderGatewayTranslation(t *testing.T) {
+	// Upstream Anthropic server returning Anthropic SSE
+	mockAnthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/messages" {
+			t.Fatalf("expected path /v1/messages, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher := w.(http.Flusher)
+
+		chunks := []string{
+			"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello from Claude\"}}\n\n",
+			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+		}
+		for _, c := range chunks {
+			_, _ = w.Write([]byte(c))
+			flusher.Flush()
+		}
+	}))
+	defer mockAnthropic.Close()
+
+	cfg := config.DefaultConfig()
+	cfg.Server.TargetProvider = "anthropic"
+	cfg.Server.UpstreamURL = mockAnthropic.URL
+
+	db, _ := store.Open(":memory:")
+	defer db.Close()
+
+	proxyServer := NewServer(cfg, db)
+	proxyHTTP := httptest.NewServer(proxyServer.Handler())
+	defer proxyHTTP.Close()
+
+	// Client sends OpenAI request to /v1/chat/completions
+	clientReqBody := `{
+		"model": "claude-3-5-sonnet",
+		"stream": true,
+		"messages": [{"role": "user", "content": "Hi Claude"}]
+	}`
+
+	req, _ := http.NewRequest(http.MethodPost, proxyHTTP.URL+"/v1/chat/completions", bytes.NewBufferString(clientReqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("gateway request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyStr := string(bodyBytes)
+
+	if !strings.Contains(bodyStr, "chat.completion.chunk") || !strings.Contains(bodyStr, "Hello from Claude") {
+		t.Fatalf("expected translated OpenAI chunk, got: %s", bodyStr)
 	}
 }

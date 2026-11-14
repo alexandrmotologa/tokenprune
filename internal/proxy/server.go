@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/alexandrmotologa/tokenprune/internal/config"
+	"github.com/alexandrmotologa/tokenprune/internal/metrics"
 	"github.com/alexandrmotologa/tokenprune/internal/pruner"
 	"github.com/alexandrmotologa/tokenprune/internal/store"
 	"github.com/alexandrmotologa/tokenprune/internal/tokenizer"
@@ -98,19 +100,26 @@ func (s *Server) handlePrunedRequest(w http.ResponseWriter, r *http.Request, isO
 	var model string
 	var stats pruner.PruningStats
 	var pruneErr error
+	needsTranslation := isOpenAI && s.cfg.Server.TargetProvider == "anthropic"
 
-	if isOpenAI {
+	if needsTranslation {
+		prunedBody, model, stats, pruneErr = TranslateOpenAIToAnthropicPayload(rawBody, s.pipeline)
+	} else if isOpenAI {
 		prunedBody, model, stats, pruneErr = PruneOpenAIPayload(rawBody, s.pipeline)
 	} else {
 		prunedBody, model, stats, pruneErr = PruneAnthropicPayload(rawBody, s.pipeline)
 	}
 
 	if pruneErr != nil {
-		// On unexpected parsing error, fallback to raw body to never break upstream agent
 		prunedBody = rawBody
 	}
 
-	upstreamURL := strings.TrimRight(s.cfg.Server.UpstreamURL, "/") + r.URL.RequestURI()
+	targetPath := r.URL.RequestURI()
+	if needsTranslation {
+		targetPath = "/v1/messages"
+	}
+
+	upstreamURL := strings.TrimRight(s.cfg.Server.UpstreamURL, "/") + targetPath
 	upReq, err := http.NewRequestWithContext(r.Context(), r.Method, upstreamURL, bytes.NewReader(prunedBody))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to construct upstream request: %v", err), http.StatusInternalServerError)
@@ -146,22 +155,53 @@ func (s *Server) handlePrunedRequest(w http.ResponseWriter, r *http.Request, isO
 
 	var ttftMs float64
 	firstByteRecorded := false
-	buf := make([]byte, 4096)
 
-	for {
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
+	if isSSE && needsTranslation {
+		scanner := bufio.NewScanner(resp.Body)
+		streamID := fmt.Sprintf("chatcmpl_%s", reqID)
+		for scanner.Scan() {
+			line := scanner.Text()
 			if !firstByteRecorded {
 				ttftMs = float64(time.Since(startTime).Nanoseconds()) / 1e6
 				firstByteRecorded = true
 			}
-			_, _ = w.Write(buf[:n])
-			if isSSE && isFlusher {
-				flusher.Flush()
+			translated := TranslateAnthropicSSEToOpenAI(line, model, streamID)
+			if translated != "" {
+				_, _ = w.Write([]byte(translated))
+				if isFlusher {
+					flusher.Flush()
+				}
 			}
 		}
-		if readErr != nil {
-			break
+	} else if !isSSE && needsTranslation {
+		rawRespBody, _ := io.ReadAll(resp.Body)
+		if !firstByteRecorded {
+			ttftMs = float64(time.Since(startTime).Nanoseconds()) / 1e6
+			firstByteRecorded = true
+		}
+		converted, err := ConvertAnthropicResponseToOpenAI(rawRespBody, model)
+		if err == nil {
+			_, _ = w.Write(converted)
+		} else {
+			_, _ = w.Write(rawRespBody)
+		}
+	} else {
+		buf := make([]byte, 4096)
+		for {
+			n, readErr := resp.Body.Read(buf)
+			if n > 0 {
+				if !firstByteRecorded {
+					ttftMs = float64(time.Since(startTime).Nanoseconds()) / 1e6
+					firstByteRecorded = true
+				}
+				_, _ = w.Write(buf[:n])
+				if isSSE && isFlusher {
+					flusher.Flush()
+				}
+			}
+			if readErr != nil {
+				break
+			}
 		}
 	}
 
@@ -206,6 +246,7 @@ func (s *Server) handlePrunedRequest(w http.ResponseWriter, r *http.Request, isO
 		}
 
 		_ = s.store.Record(record)
+		metrics.Default.ObserveSession(record)
 	}()
 }
 

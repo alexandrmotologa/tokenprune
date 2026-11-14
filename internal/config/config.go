@@ -53,10 +53,12 @@ type Tier2ToolEvictionConfig struct {
 }
 
 type Tier3SemanticDeltaConfig struct {
-	Enabled            bool     `yaml:"enabled"`
-	CompressAfterTurns int      `yaml:"compress_after_turns"`
-	KeepRecentTurns    int      `yaml:"keep_recent_turns"`
-	ProtectedKeywords  []string `yaml:"protected_keywords"`
+	Enabled              bool     `yaml:"enabled"`
+	CompressAfterTurns   int      `yaml:"compress_after_turns"`
+	KeepRecentTurns      int      `yaml:"keep_recent_turns"`
+	ProtectedKeywords    []string `yaml:"protected_keywords"`
+	ReinforceAnchorTurns int      `yaml:"reinforce_anchor_turns"`
+	EnableContextAnchors bool     `yaml:"enable_context_anchors"`
 }
 
 type PricingConfig struct {
@@ -103,10 +105,12 @@ func DefaultConfig() *Config {
 				ProtectedToolNames:    []string{"bash_critical", "deploy", "checkout"},
 			},
 			Tier3SemanticDelta: Tier3SemanticDeltaConfig{
-				Enabled:            true,
-				CompressAfterTurns: 6,
-				KeepRecentTurns:    4,
-				ProtectedKeywords:  []string{"CRITICAL_RULES", "SYSTEM_INVARIANT", "PINNED"},
+				Enabled:              true,
+				CompressAfterTurns:   6,
+				KeepRecentTurns:      4,
+				ProtectedKeywords:    []string{"CRITICAL_RULES", "SYSTEM_INVARIANT", "PINNED"},
+				ReinforceAnchorTurns: 8,
+				EnableContextAnchors: true,
 			},
 		},
 		Pricing: PricingConfig{
